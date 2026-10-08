@@ -3,24 +3,28 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../../components/theme';
+import { useColors, useStyles } from '../../components/ThemeContext';
+import { spacing, type Colors } from '../../components/theme';
 import { Button, Card, EmptyState, SectionTitle, type IconName } from '../../components/ui';
 import { VideoPreview } from '../../components/VideoPreview';
 import {
   deleteExercise,
   getExercise,
   getExerciseHistory,
-  type Activity,
   type Exercise,
+  type ExerciseHistoryEntry,
 } from '../../db/database';
 import { formatDayLabel } from '../../lib/date';
+import { formatSets } from '../../lib/format';
 import { deleteStoredVideo } from '../../lib/videos';
 
 export default function ExerciseDetailScreen() {
+  const styles = useStyles(createStyles);
+  const colors = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const exerciseId = Number(id);
   const [exercise, setExercise] = useState<Exercise | null | undefined>(undefined);
-  const [history, setHistory] = useState<Activity[]>([]);
+  const [history, setHistory] = useState<ExerciseHistoryEntry[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -35,18 +39,22 @@ export default function ExerciseDetailScreen() {
   }
 
   const confirmDelete = () => {
-    Alert.alert('Übung löschen?', `„${exercise.name}“ und das Erklärvideo werden gelöscht.`, [
-      { text: 'Abbrechen', style: 'cancel' },
-      {
-        text: 'Löschen',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteExercise(exercise.id);
-          deleteStoredVideo(exercise.video_uri);
-          router.back();
+    Alert.alert(
+      'Übung löschen?',
+      `„${exercise.name}“ und das Erklärvideo werden gelöscht. Sie wird auch aus allen Trainingsplänen entfernt.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteExercise(exercise.id);
+            deleteStoredVideo(exercise.video_uri);
+            router.back();
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const logWorkout = () =>
@@ -98,9 +106,14 @@ export default function ExerciseDetailScreen() {
         ) : (
           history.map((h) => (
             <View key={h.id} style={styles.historyRow}>
-              <Text style={styles.historyDate}>{formatDayLabel(h.date)}</Text>
+              <Text style={styles.historyDate}>
+                {formatDayLabel(h.date)}
+                {h.workout_id != null ? <Text style={styles.historyPlan}> · {h.title}</Text> : null}
+              </Text>
               <Text style={styles.historyText}>
-                {h.duration_min} min · {Math.round(h.kcal)} kcal{h.notes ? ` · ${h.notes}` : ''}
+                {h.sets.length > 0
+                  ? formatSets(h.sets)
+                  : `${h.duration_min} min · ${Math.round(h.kcal)} kcal${h.notes ? ` · ${h.notes}` : ''}`}
               </Text>
             </View>
           ))
@@ -118,15 +131,9 @@ export default function ExerciseDetailScreen() {
   );
 }
 
-function Meta({
-  icon,
-  label,
-  value,
-}: {
-  icon: IconName;
-  label: string;
-  value: string;
-}) {
+function Meta({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  const styles = useStyles(createStyles);
+  const colors = useColors();
   return (
     <View style={{ flex: 1, alignItems: 'center' }}>
       <Ionicons name={icon} size={20} color={colors.primary} />
@@ -136,17 +143,19 @@ function Meta({
   );
 }
 
-const styles = StyleSheet.create({
-  noVideo: { alignItems: 'center', paddingVertical: spacing.xl },
-  muted: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 4 },
-  meta: { flexDirection: 'row' },
-  metaValue: { fontSize: 16, fontWeight: '700', color: colors.text, marginTop: 4 },
-  description: { fontSize: 15, lineHeight: 22, color: colors.text },
-  historyRow: {
-    paddingVertical: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  historyDate: { fontWeight: '600', color: colors.text },
-  historyText: { color: colors.muted, fontSize: 13 },
-});
+const createStyles = (c: Colors) =>
+  StyleSheet.create({
+    noVideo: { alignItems: 'center', paddingVertical: spacing.xl },
+    muted: { color: c.muted, fontSize: 12, textAlign: 'center', marginTop: 4 },
+    meta: { flexDirection: 'row' },
+    metaValue: { fontSize: 16, fontWeight: '700', color: c.text, marginTop: 4 },
+    description: { fontSize: 15, lineHeight: 22, color: c.text },
+    historyRow: {
+      paddingVertical: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    historyDate: { fontWeight: '600', color: c.text },
+    historyPlan: { fontWeight: '400', color: c.muted },
+    historyText: { color: c.muted, fontSize: 13, marginTop: 2 },
+  });

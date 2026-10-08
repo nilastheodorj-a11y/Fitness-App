@@ -3,12 +3,16 @@
     "name": "FitTrack",
     "slug": "fittrack",
     "scheme": "fittrack",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.nilas.fittrack",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.nilas.fittrack",
@@ -36,14 +40,29 @@
       "expo-sqlite",
       "expo-video",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "FitTrack braucht die Kamera, um Barcodes von Lebensmitteln zu scannen und Erklärvideos aufzunehmen.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "FitTrack braucht Zugriff auf deine Mediathek, um Erklärvideos für Übungen auszuwählen.",
-          "cameraPermission": "FitTrack braucht die Kamera, um Erklärvideos für Übungen aufzunehmen.",
+          "cameraPermission": "FitTrack braucht die Kamera, um Barcodes von Lebensmitteln zu scannen und Erklärvideos aufzunehmen.",
           "microphonePermission": "FitTrack braucht das Mikrofon, um Ton für Erklärvideos aufzunehmen."
         }
       ],
       "react-native-health-connect",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "FitTrack liest Schritte, verbrannte Kalorien und Trainings aus Apple Health, damit du deinen Kalorienverbrauch siehst.",
+          "NSHealthUpdateUsageDescription": "FitTrack speichert deine Mahlzeiten und Trainings in Apple Health.",
+          "background": false
+        }
+      ],
       [
         "expo-build-properties",
         {

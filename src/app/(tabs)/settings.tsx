@@ -1,41 +1,49 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../../components/theme';
-import { Button, Card, Field, parseNumber, SectionTitle } from '../../components/ui';
-import { getGoals, getSetting, saveGoals, setSetting } from '../../db/database';
+import { useAppTheme, useStyles, type ThemePreference } from '../../components/ThemeContext';
+import { spacing, type Colors } from '../../components/theme';
+import { Button, Card, Field, parseNumber, SectionTitle, Segmented } from '../../components/ui';
+import { getBodyWeight, getGoals, saveGoals, setSetting } from '../../db/database';
 import {
+  canOpenSettings,
   connect,
   disconnect,
-  getGrantedCount,
   getStatus,
+  healthName,
+  healthUnavailableReason,
   isEnabled,
   openSettings,
-  PERMISSIONS,
-  type HealthConnectStatus,
-} from '../../health/healthConnect';
+  permissionSummary,
+  type HealthStatus,
+} from '../../health';
 
 const HEALTH_CONNECT_PLAY_STORE =
   'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
 
 export default function SettingsScreen() {
+  const styles = useStyles(createStyles);
+  const { preference, setPreference } = useAppTheme();
+
   const [kcal, setKcal] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
   const [weight, setWeight] = useState('');
 
-  const [status, setStatus] = useState<HealthConnectStatus | null>(null);
+  const [status, setStatus] = useState<HealthStatus | null>(null);
   const [enabled, setEnabled] = useState(false);
-  const [granted, setGranted] = useState(0);
+  const [summary, setSummary] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
 
   const loadHealth = useCallback(async () => {
-    setStatus(await getStatus());
-    setEnabled(await isEnabled());
-    setGranted(await getGrantedCount());
+    const s = await getStatus();
+    setStatus(s);
+    const on = await isEnabled();
+    setEnabled(on);
+    setSummary(on ? await permissionSummary() : null);
   }, []);
 
   useFocusEffect(
@@ -46,7 +54,7 @@ export default function SettingsScreen() {
         setCarbs(String(g.carbs));
         setFat(String(g.fat));
       });
-      getSetting('weightKg').then((w) => setWeight(w ?? '75'));
+      getBodyWeight().then((w) => setWeight(String(w).replace('.', ',')));
       loadHealth();
     }, [loadHealth])
   );
@@ -71,11 +79,11 @@ export default function SettingsScreen() {
   const onConnect = async () => {
     setConnecting(true);
     try {
-      const count = await connect();
-      if (count === 0) {
+      const ok = await connect();
+      if (!ok) {
         Alert.alert(
           'Keine Berechtigungen',
-          'Du hast keine Berechtigungen erteilt. Du kannst sie jederzeit in Health Connect ändern.'
+          `Du hast ${healthName()} keinen Zugriff erlaubt. Du kannst das jederzeit nachholen.`
         );
       }
     } catch (e) {
@@ -94,18 +102,18 @@ export default function SettingsScreen() {
   return (
     <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
       <Card>
-        <SectionTitle>Google Health Connect</SectionTitle>
-        <HealthStatus status={status} enabled={enabled} granted={granted} />
+        <SectionTitle>{healthName()}</SectionTitle>
+        <HealthStatusRow status={status} enabled={enabled} summary={summary} />
 
         {status === 'available' && !enabled && (
-          <Button title="Mit Health Connect verbinden" icon="heart" onPress={onConnect} loading={connecting} />
+          <Button title={`Mit ${healthName()} verbinden`} icon="heart" onPress={onConnect} loading={connecting} />
         )}
         {status === 'available' && enabled && (
           <>
-            {granted < PERMISSIONS.length && (
-              <Button title="Berechtigungen erneut anfragen" icon="key" onPress={onConnect} loading={connecting} />
+            <Button title="Berechtigungen erneut anfragen" variant="secondary" icon="key" onPress={onConnect} loading={connecting} />
+            {canOpenSettings() && (
+              <Button title={`${healthName()} öffnen`} variant="secondary" icon="open" onPress={openSettings} />
             )}
-            <Button title="Health Connect öffnen" variant="secondary" icon="open" onPress={openSettings} />
             <Button title="Synchronisierung beenden" variant="secondary" icon="close-circle" onPress={onDisconnect} />
           </>
         )}
@@ -117,10 +125,26 @@ export default function SettingsScreen() {
           />
         )}
         <Text style={styles.hint}>
-          Gelesen werden Schritte, verbrannte Kalorien und Trainings anderer Apps (z. B. Smartwatch, Google
-          Fit, Samsung Health). Deine Mahlzeiten und Aktivitäten aus FitTrack werden nach Health Connect
-          geschrieben.
+          Gelesen werden Schritte, verbrannte Kalorien und Trainings anderer Apps
+          {Platform.OS === 'ios' ? ' (z. B. Apple Watch).' : ' (z. B. Smartwatch, Google Fit, Samsung Health).'} Deine
+          Mahlzeiten und Trainings aus FitTrack werden dort gespeichert.
+          {Platform.OS === 'ios'
+            ? ' Berechtigungen änderst du unter Einstellungen › Gesundheit › Datenzugriff & Geräte › FitTrack.'
+            : ''}
         </Text>
+      </Card>
+
+      <Card>
+        <SectionTitle>Darstellung</SectionTitle>
+        <Segmented<ThemePreference>
+          value={preference}
+          onChange={setPreference}
+          options={[
+            { value: 'system', label: 'System' },
+            { value: 'light', label: 'Hell' },
+            { value: 'dark', label: 'Dunkel' },
+          ]}
+        />
       </Card>
 
       <Card>
@@ -147,22 +171,24 @@ export default function SettingsScreen() {
   );
 }
 
-function HealthStatus({
+function HealthStatusRow({
   status,
   enabled,
-  granted,
+  summary,
 }: {
-  status: HealthConnectStatus | null;
+  status: HealthStatus | null;
   enabled: boolean;
-  granted: number;
+  summary: string | null;
 }) {
+  const styles = useStyles(createStyles);
+  const { colors } = useAppTheme();
   let icon: 'checkmark-circle' | 'alert-circle' | 'close-circle' = 'alert-circle';
   let color = colors.muted;
   let text = 'Wird geprüft …';
 
   if (status === 'unsupported') {
     icon = 'close-circle';
-    text = 'Health Connect ist nur auf Android in einem eigenen App-Build (nicht Expo Go) verfügbar.';
+    text = healthUnavailableReason();
   } else if (status === 'not_installed') {
     text = 'Health Connect ist auf diesem Gerät nicht installiert.';
   } else if (status === 'update_required') {
@@ -170,7 +196,7 @@ function HealthStatus({
   } else if (status === 'available' && enabled) {
     icon = 'checkmark-circle';
     color = colors.success;
-    text = `Verbunden · ${granted} von ${PERMISSIONS.length} Berechtigungen erteilt`;
+    text = summary ? `Verbunden · ${summary}` : 'Verbunden';
   } else if (status === 'available') {
     text = 'Verfügbar, aber nicht verbunden.';
   }
@@ -183,8 +209,9 @@ function HealthStatus({
   );
 }
 
-const styles = StyleSheet.create({
-  hint: { color: colors.muted, fontSize: 12, marginTop: spacing.xs },
-  status: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
-  statusText: { marginLeft: spacing.sm, flex: 1 },
-});
+const createStyles = (c: Colors) =>
+  StyleSheet.create({
+    hint: { color: c.muted, fontSize: 12, marginTop: spacing.xs },
+    status: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
+    statusText: { marginLeft: spacing.sm, flex: 1 },
+  });

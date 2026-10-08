@@ -3,21 +3,18 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../../components/theme';
+import { useColors, useStyles } from '../../components/ThemeContext';
+import { spacing, type Colors } from '../../components/theme';
 import { Card, DateSwitcher, SectionTitle } from '../../components/ui';
-import {
-  deleteFood,
-  getFoodsForDate,
-  MEAL_LABELS,
-  type FoodEntry,
-  type MealType,
-} from '../../db/database';
-import { deleteFoodRecord } from '../../health/healthConnect';
+import { deleteFood, getFoodsForDate, MEAL_LABELS, type FoodEntry, type MealType } from '../../db/database';
+import { removeFood } from '../../health';
 import { todayKey } from '../../lib/date';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 export default function NutritionScreen() {
+  const styles = useStyles(createStyles);
+  const colors = useColors();
   const [date, setDate] = useState(todayKey());
   const [foods, setFoods] = useState<FoodEntry[]>([]);
 
@@ -39,15 +36,14 @@ export default function NutritionScreen() {
         style: 'destructive',
         onPress: async () => {
           await deleteFood(food.id);
-          await deleteFoodRecord(food.id);
+          await removeFood(food);
           load();
         },
       },
     ]);
   };
 
-  const sum = (key: 'kcal' | 'protein' | 'carbs' | 'fat') =>
-    Math.round(foods.reduce((s, f) => s + f[key], 0));
+  const sum = (key: 'kcal' | 'protein' | 'carbs' | 'fat') => Math.round(foods.reduce((s, f) => s + f[key], 0));
 
   return (
     <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
@@ -67,12 +63,23 @@ export default function NutritionScreen() {
           <Card key={meal}>
             <SectionTitle
               right={
-                <Pressable
-                  hitSlop={10}
-                  onPress={() => router.push({ pathname: '/food/new', params: { meal, date } })}
-                >
-                  <Ionicons name="add-circle" size={28} color={colors.primary} />
-                </Pressable>
+                <View style={{ flexDirection: 'row' }}>
+                  <Pressable
+                    hitSlop={10}
+                    style={{ marginRight: spacing.md }}
+                    onPress={() => router.push({ pathname: '/food/new', params: { meal, date, scan: '1' } })}
+                    accessibilityLabel={`${MEAL_LABELS[meal]} per Barcode hinzufügen`}
+                  >
+                    <Ionicons name="barcode-outline" size={28} color={colors.primary} />
+                  </Pressable>
+                  <Pressable
+                    hitSlop={10}
+                    onPress={() => router.push({ pathname: '/food/new', params: { meal, date } })}
+                    accessibilityLabel={`${MEAL_LABELS[meal]} hinzufügen`}
+                  >
+                    <Ionicons name="add-circle" size={28} color={colors.primary} />
+                  </Pressable>
+                </View>
               }
             >
               {MEAL_LABELS[meal]} {kcal > 0 ? <Text style={styles.mealKcal}>· {kcal} kcal</Text> : null}
@@ -100,41 +107,35 @@ export default function NutritionScreen() {
   );
 }
 
-function Summary({
-  label,
-  value,
-  color,
-  unit = '',
-}: {
-  label: string;
-  value: number;
-  color: string;
-  unit?: string;
-}) {
+function Summary({ label, value, color, unit = '' }: { label: string; value: number; color: string; unit?: string }) {
+  const styles = useStyles(createStyles);
   return (
     <View style={{ alignItems: 'center', flex: 1 }}>
-      <Text style={{ fontSize: 20, fontWeight: '800', color }}>
+      <Text style={[styles.summaryValue, { color }]}>
         {value}
         {unit}
       </Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  summary: { flexDirection: 'row' },
-  mealKcal: { fontSize: 14, fontWeight: '400', color: colors.muted },
-  empty: { color: colors.muted, fontStyle: 'italic' },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  itemName: { fontSize: 16, color: colors.text },
-  itemMacros: { fontSize: 12, color: colors.muted, marginTop: 2 },
-  itemKcal: { fontWeight: '600', color: colors.text },
-  tip: { textAlign: 'center', color: colors.muted, fontSize: 12, marginTop: spacing.sm },
-});
+const createStyles = (c: Colors) =>
+  StyleSheet.create({
+    summary: { flexDirection: 'row' },
+    summaryValue: { fontSize: 20, fontWeight: '800' },
+    summaryLabel: { color: c.muted, fontSize: 12 },
+    mealKcal: { fontSize: 14, fontWeight: '400', color: c.muted },
+    empty: { color: c.muted, fontStyle: 'italic' },
+    item: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    itemName: { fontSize: 16, color: c.text },
+    itemMacros: { fontSize: 12, color: c.muted, marginTop: 2 },
+    itemKcal: { fontWeight: '600', color: c.text },
+    tip: { textAlign: 'center', color: c.muted, fontSize: 12, marginTop: spacing.sm },
+  });

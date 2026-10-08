@@ -2,7 +2,8 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../../components/theme';
+import { useStyles } from '../../components/ThemeContext';
+import { spacing, type Colors } from '../../components/theme';
 import { Button, Chip, Field, parseNumber } from '../../components/ui';
 import { VideoPreview } from '../../components/VideoPreview';
 import { addExercise, getExercise, updateExercise } from '../../db/database';
@@ -11,6 +12,7 @@ import { deleteStoredVideo, pickAndStoreVideo, type VideoSource } from '../../li
 
 /** Neue Übung anlegen oder (mit ?id=) eine bestehende bearbeiten. */
 export default function ExerciseFormScreen() {
+  const styles = useStyles(createStyles);
   const { id } = useLocalSearchParams<{ id?: string }>();
   const editId = id ? Number(id) : null;
 
@@ -161,8 +163,9 @@ export default function ExerciseFormScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  label: { color: colors.muted, marginBottom: 6, fontSize: 13 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.sm },
-  row: { flexDirection: 'row' },
-});
+const createStyles = (c: Colors) =>
+  StyleSheet.create({
+    label: { color: c.muted, marginBottom: 6, fontSize: 13 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.sm },
+    row: { flexDirection: 'row' },
+  });

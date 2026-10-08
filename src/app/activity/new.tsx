@@ -2,20 +2,17 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../../components/theme';
-import { Button, Chip, Field, parseNumber, type IconName } from '../../components/ui';
-import { addActivity, getSetting } from '../../db/database';
-import { writeActivity } from '../../health/healthConnect';
+import { useStyles } from '../../components/ThemeContext';
+import { spacing, type Colors } from '../../components/theme';
+import { Button, Chip, Field, parseNumber } from '../../components/ui';
+import { addActivity, getBodyWeight } from '../../db/database';
+import { syncActivity } from '../../health';
 import { ACTIVITY_TYPES, estimateKcal, getActivityType } from '../../lib/activityTypes';
 import { todayKey } from '../../lib/date';
 
 export default function NewActivityScreen() {
-  const params = useLocalSearchParams<{
-    date?: string;
-    exerciseId?: string;
-    title?: string;
-    type?: string;
-  }>();
+  const styles = useStyles(createStyles);
+  const params = useLocalSearchParams<{ date?: string; exerciseId?: string; title?: string; type?: string }>();
   const date = params.date ?? todayKey();
   const exerciseId = params.exerciseId ? Number(params.exerciseId) : null;
 
@@ -28,7 +25,7 @@ export default function NewActivityScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getSetting('weightKg').then((w) => w && setWeight(parseNumber(w) || 75));
+    getBodyWeight().then(setWeight);
   }, []);
 
   const estimated = estimateKcal(type, parseNumber(duration), weight);
@@ -41,7 +38,7 @@ export default function NewActivityScreen() {
     }
     setSaving(true);
     try {
-      const activity = {
+      const activity = await addActivity({
         date,
         type,
         title: title.trim() || getActivityType(type).label,
@@ -49,9 +46,9 @@ export default function NewActivityScreen() {
         kcal: kcal.trim() ? Math.round(parseNumber(kcal)) : estimated,
         notes: notes.trim(),
         exercise_id: exerciseId,
-      };
-      const id = await addActivity(activity);
-      await writeActivity({ ...activity, id, created_at: new Date().toISOString() });
+        workout_id: null,
+      });
+      await syncActivity(activity);
       router.back();
     } catch (e) {
       Alert.alert('Fehler beim Speichern', String(e));
@@ -65,22 +62,11 @@ export default function NewActivityScreen() {
         <Text style={styles.label}>Art</Text>
         <View style={styles.chips}>
           {ACTIVITY_TYPES.map((t) => (
-            <Chip
-              key={t.key}
-              label={t.label}
-              icon={t.icon as IconName}
-              selected={type === t.key}
-              onPress={() => setType(t.key)}
-            />
+            <Chip key={t.key} label={t.label} icon={t.icon} selected={type === t.key} onPress={() => setType(t.key)} />
           ))}
         </View>
 
-        <Field
-          label="Titel (optional)"
-          value={title}
-          onChangeText={setTitle}
-          placeholder={getActivityType(type).label}
-        />
+        <Field label="Titel (optional)" value={title} onChangeText={setTitle} placeholder={getActivityType(type).label} />
         <View style={{ flexDirection: 'row' }}>
           <Field label="Dauer (Minuten)" value={duration} onChangeText={setDuration} keyboardType="number-pad" />
           <View style={{ width: spacing.sm }} />
@@ -95,13 +81,7 @@ export default function NewActivityScreen() {
         <Text style={styles.hint}>
           Leer lassen für eine Schätzung ({estimated} kcal bei {weight} kg Körpergewicht).
         </Text>
-        <Field
-          label="Notizen"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          placeholder="z. B. 4×10 mit 60 kg"
-        />
+        <Field label="Notizen" value={notes} onChangeText={setNotes} multiline placeholder="z. B. 4×10 mit 60 kg" />
 
         <Button title="Speichern" icon="checkmark" onPress={save} loading={saving} />
       </ScrollView>
@@ -109,8 +89,9 @@ export default function NewActivityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  label: { color: colors.muted, marginBottom: 6, fontSize: 13 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.sm },
-  hint: { color: colors.muted, fontSize: 12, marginTop: -spacing.sm, marginBottom: spacing.md },
-});
+const createStyles = (c: Colors) =>
+  StyleSheet.create({
+    label: { color: c.muted, marginBottom: 6, fontSize: 13 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.sm },
+    hint: { color: c.muted, fontSize: 12, marginTop: -spacing.sm, marginBottom: spacing.md },
+  });
