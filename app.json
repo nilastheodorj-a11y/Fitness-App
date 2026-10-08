@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "FitTrack",
+    "slug": "fittrack",
+    "scheme": "fittrack",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.nilas.fittrack",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_TOTAL_CALORIES_BURNED",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.WRITE_EXERCISE",
+        "android.permission.health.WRITE_NUTRITION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FitTrack braucht Zugriff auf deine Mediathek, um Erklärvideos für Übungen auszuwählen.",
+          "cameraPermission": "FitTrack braucht die Kamera, um Erklärvideos für Übungen aufzunehmen.",
+          "microphonePermission": "FitTrack braucht das Mikrofon, um Ton für Erklärvideos aufzunehmen."
+        }
+      ],
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ]
+  }
+}
